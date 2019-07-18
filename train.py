@@ -1,3 +1,4 @@
+from pdb import set_trace
 import os
 import json
 import time
@@ -12,12 +13,14 @@ from collections import OrderedDict, defaultdict
 from ptb import PTB
 from utils import to_var, idx2word, expierment_name
 from model import SentenceVAE
+from sklearn.externals import joblib
 
 def main(args):
 
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
 
-    splits = ['train', 'valid'] + (['test'] if args.test else [])
+    #splits = ['train', 'valid'] + (['test'] if args.test else [])
+    splits = ['train'] + (['test'] if args.test else [])
 
     datasets = OrderedDict()
     for split in splits:
@@ -70,7 +73,8 @@ def main(args):
     def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
 
         # cut-off unnecessary padding from target, and flatten
-        target = target[:, :torch.max(length).data[0]].contiguous().view(-1)
+        #target = target[:, :torch.max(length).data[0]].contiguous().view(-1)
+        target = target[:, :torch.max(length).data].contiguous().view(-1)
         logp = logp.view(-1, logp.size(2))
         
         # Negative Log Likelihood
@@ -98,7 +102,7 @@ def main(args):
                 pin_memory=torch.cuda.is_available()
             )
 
-            tracker = defaultdict(tensor)
+            tracker = defaultdict(list)
 
             # Enable/Disable Dropout
             if split == 'train':
@@ -130,34 +134,34 @@ def main(args):
                     optimizer.step()
                     step += 1
 
-
+                #set_trace()
                 # bookkeepeing
-                tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.data))
+                tracker['ELBO'].append(loss.data)
 
                 if args.tensorboard_logging:
-                    writer.add_scalar("%s/ELBO"%split.upper(), loss.data[0], epoch*len(data_loader) + iteration)
-                    writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.data[0]/batch_size, epoch*len(data_loader) + iteration)
-                    writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.data[0]/batch_size, epoch*len(data_loader) + iteration)
+                    writer.add_scalar("%s/ELBO"%split.upper(), loss.data, epoch*len(data_loader) + iteration)
+                    writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.data/batch_size, epoch*len(data_loader) + iteration)
+                    writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.data/batch_size, epoch*len(data_loader) + iteration)
                     writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, epoch*len(data_loader) + iteration)
 
                 if iteration % args.print_every == 0 or iteration+1 == len(data_loader):
                     print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
-                        %(split.upper(), iteration, len(data_loader)-1, loss.data[0], NLL_loss.data[0]/batch_size, KL_loss.data[0]/batch_size, KL_weight))
+                        %(split.upper(), iteration, len(data_loader)-1, loss.data, NLL_loss.data/batch_size, KL_loss.data/batch_size, KL_weight))
 
                 if split == 'valid':
                     if 'target_sents' not in tracker:
                         tracker['target_sents'] = list()
                     tracker['target_sents'] += idx2word(batch['target'].data, i2w=datasets['train'].get_i2w(), pad_idx=datasets['train'].pad_idx)
-                    tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
+                    tracker['z'].append(z.data)
 
-            print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])))
+            print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, np.mean(tracker['ELBO'])))
 
             if args.tensorboard_logging:
-                writer.add_scalar("%s-Epoch/ELBO"%split.upper(), torch.mean(tracker['ELBO']), epoch)
+                writer.add_scalar("%s-Epoch/ELBO"%split.upper(), np.mean(tracker['ELBO']), epoch)
 
             # save a dump of all sentences and the encoded latent space
             if split == 'valid':
-                dump = {'target_sents':tracker['target_sents'], 'z':tracker['z'].tolist()}
+                dump = {'target_sents':tracker['target_sents'], 'z':tracker['z']}
                 if not os.path.exists(os.path.join('dumps', ts)):
                     os.makedirs('dumps/'+ts)
                 with open(os.path.join('dumps/'+ts+'/valid_E%i.json'%epoch), 'w') as dump_file:
@@ -167,8 +171,8 @@ def main(args):
             if split == 'train':
                 checkpoint_path = os.path.join(save_model_path, "E%i.pytorch"%(epoch))
                 torch.save(model.state_dict(), checkpoint_path)
+                joblib.dump(model, checkpoint_path)
                 print("Model saved at %s"%checkpoint_path)
-
 
 if __name__ == '__main__':
 
