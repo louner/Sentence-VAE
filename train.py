@@ -136,7 +136,7 @@ def main(args):
 
                 #set_trace()
                 # bookkeepeing
-                tracker['ELBO'].append(loss.data)
+                tracker['ELBO'].append(loss.data.cpu().numpy().tolist())
 
                 if args.tensorboard_logging:
                     writer.add_scalar("%s/ELBO"%split.upper(), loss.data, epoch*len(data_loader) + iteration)
@@ -171,8 +171,10 @@ def main(args):
             if split == 'train':
                 checkpoint_path = os.path.join(save_model_path, "E%i.pytorch"%(epoch))
                 torch.save(model.state_dict(), checkpoint_path)
-                joblib.dump(model, checkpoint_path)
+                joblib.dump(model.cpu(), checkpoint_path)
                 print("Model saved at %s"%checkpoint_path)
+
+                model.cuda()
 
 if __name__ == '__main__':
 
