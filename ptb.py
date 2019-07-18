@@ -5,15 +5,48 @@ import torch
 import numpy as np
 from collections import defaultdict
 from torch.utils.data import Dataset
-from nltk.tokenize import TweetTokenizer
+#from nltk.tokenize import TweetTokenizer
+from gensim.utils import simple_tokenize
+
+class TweetTokenizer:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def tokenize(self, input):
+        #return [t for t in simple_tokenize(input)]
+        return input.split(' ')
 
 from utils import OrderedCounter
+
+import re
+letter_pat = re.compile(r'[a-zA-Z0-9]')
+
+def rewrite_letters(url):
+    return letter_pat.sub('a', url)
+
+tok_pat = re.compile(r'[0-9a-zA-Z]+')
+split_pat = re.compile(r'([0-9a-zA-Z]+)')
+def to_length(match):
+    return str(len(match.group()))
+
+def split_delimeters(splitted):
+    for tok in splitted:
+        if tok_pat.match(tok):
+            yield tok
+        else:
+            for c in tok:
+                yield c
+
+def rewrite_to_toklen(url):
+    rewritten = tok_pat.sub(to_length, url)
+    splitted = split_pat.split(rewritten)
+    return ' '.join(split_delimeters(splitted))
 
 class PTB(Dataset):
 
     def __init__(self, data_dir, split, create_data, **kwargs):
 
-        super().__init__()
+        Dataset.__init__(self)
         self.data_dir = data_dir
         self.split = split
         self.max_sequence_length = kwargs.get('max_sequence_length', 50)
@@ -102,6 +135,7 @@ class PTB(Dataset):
         with open(self.raw_data_path, 'r') as file:
 
             for i, line in enumerate(file):
+                line = rewrite_to_toklen(line)
 
                 words = tokenizer.tokenize(line)
 
@@ -149,6 +183,8 @@ class PTB(Dataset):
         with open(self.raw_data_path, 'r') as file:
 
             for i, line in enumerate(file):
+                line = rewrite_to_toklen(line)
+
                 words = tokenizer.tokenize(line)
                 w2c.update(words)
 
@@ -167,3 +203,5 @@ class PTB(Dataset):
             vocab_file.write(data.encode('utf8', 'replace'))
 
         self._load_vocab()
+
+#PTB('./data', 'train', create_data=True)
