@@ -90,12 +90,13 @@ def preprocess(line):
     return {'input': input, 'target': target, 'length': length}
 
 class PTB(Dataset):
-    def __init__(self, ptb_file=None, vocab_file=None, **kwargs):
-
+    def __init__(self, ptb_file=None, vocab_file=None, train_with_vocab=False, train_file=None,**kwargs):
         Dataset.__init__(self)
         if ptb_file is not None:
             return joblib.load(ptb_file)
 
+        self.train_with_vocab = train_with_vocab
+        self.train_file = train_file
         self.max_sequence_length = kwargs.get('max_sequence_length', 50)
         self.min_occ = kwargs.get('min_occ', 3)
         self.w2i = None
@@ -109,7 +110,6 @@ class PTB(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-
         return {
             'input': np.asarray(self.data[idx]['input']),
             'target': np.asarray(self.data[idx]['target']),
@@ -159,12 +159,12 @@ class PTB(Dataset):
         max_sequence_length = self.max_sequence_length
         
         df = df
-        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=200)
+        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
         self.data = df['preprocess'].values.tolist()
 
     def create_vocab(self, vocab_file):
         self.vocab_file = vocab_file
-        self.df = pd.DataFrame()
+        df = pd.DataFrame()
 
         tokenizer = TweetTokenizer(preserve_case=False)
 
@@ -198,7 +198,21 @@ class PTB(Dataset):
         self.w2i = w2i
         self.i2w = i2w
 
-        self.df['url'] = lines
-        self.create_data(self.df)
+        self.dump()
 
+        if self.train_with_vocab:
+            df['url'] = lines
+            self.create_data(df)
+
+        elif self.train_file is not None:
+            df = pd.read_csv(self.train_file, names=['url'])
+            self.create_data(df)
+
+class PTBDataset(PTB):
+    def __init__(self, ptb, **kwargs):
+        Dataset.__init__(self)
+        self.data = ptb.data
+        self.w2i = ptb.w2i
+        self.i2w = ptb.i2w
+        del ptb.data
 #PTB('./data', 'train', create_data=True)

@@ -14,9 +14,9 @@ if __name__ == '__main__':
         model.cuda()
 
     test = pd.read_csv(test_file, names=['url'])
-    model.datasets.create_data(test)
+    model.ptb.create_data(test)
 
-    data_loader = DataLoader(dataset=model.datasets, batch_size=4096, shuffle=False, num_workers=cpu_count())
+    data_loader = DataLoader(dataset=model.ptb, batch_size=4096, shuffle=False, num_workers=cpu_count())
 
     encoded = []
     for iteration, batch in enumerate(data_loader):

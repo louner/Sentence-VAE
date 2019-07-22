@@ -10,7 +10,7 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 
-from ptb import PTB
+from ptb import PTB, PTBDataset
 from utils import to_var, idx2word, expierment_name
 from model import SentenceVAE
 from sklearn.externals import joblib
@@ -19,12 +19,15 @@ def main(args):
 
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
 
-    datasets = PTB(
+    ptb = PTB(
         vocab_file=args.vocab_file,
+        train_file=args.train_file,
+        train_with_vocab=False,
         create_data=args.create_data,
         max_sequence_length=args.max_sequence_length,
         min_occ=args.min_occ
     )
+    datasets = PTBDataset(ptb)
 
     model = SentenceVAE(
         vocab_size=datasets.vocab_size,
@@ -43,7 +46,7 @@ def main(args):
         bidirectional=args.bidirectional
         )
 
-    model.datasets = datasets
+    model.ptb = ptb
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -172,6 +175,7 @@ if __name__ == '__main__':
 
     #parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('-vf', '--vocab_file', type=str, default='data')
+    parser.add_argument('-tf', '--train_file', type=str, default='data')
     parser.add_argument('--create_data', action='store_true')
     parser.add_argument('--max_sequence_length', type=int, default=60)
     parser.add_argument('--min_occ', type=int, default=1)
