@@ -7,6 +7,7 @@ from collections import defaultdict
 from torch.utils.data import Dataset
 #from nltk.tokenize import TweetTokenizer
 from gensim.utils import simple_tokenize
+import pandas as pd
 
 class TweetTokenizer:
     def __init__(self, *args, **kwargs):
@@ -41,6 +42,49 @@ def rewrite_to_toklen(url):
     rewritten = tok_pat.sub(to_length, url)
     splitted = split_pat.split(rewritten)
     return ' '.join(split_delimeters(splitted))
+
+tokenizer = TweetTokenizer(preserve_case=False)
+max_sequence_length = 60
+w2i = {}
+
+from contextlib import closing
+from multiprocessing import Pool
+
+def parallel_apply(df, key, funct, output_key, n_jobs=200):
+    if output_key in df.columns:
+        del df[output_key]
+
+    inputs = df[key].unique()
+    process_number = n_jobs
+    with closing(Pool(process_number)) as pool:
+        outputs = pool.map(funct, inputs)
+    pool.close()
+    pool.join()
+    output = pd.DataFrame()
+    output[key] = inputs
+    output[output_key] = outputs
+    return df.merge(output, on=key)
+
+def preprocess(line):
+    line = rewrite_to_toklen(line)
+    words = tokenizer.tokenize(line)
+
+    input = ['<sos>'] + words
+    input = input[:max_sequence_length]
+
+    target = words[:max_sequence_length-1]
+    target = target + ['<eos>']
+
+    assert len(input) == len(target), "%i, %i"%(len(input), len(target))
+    length = len(input)
+
+    input.extend(['<pad>'] * (max_sequence_length-length))
+    target.extend(['<pad>'] * (max_sequence_length-length))
+
+    input = [w2i.get(w, w2i['<unk>']) for w in input]
+    target = [w2i.get(w, w2i['<unk>']) for w in target]
+
+    return {'input': input, 'target': target, 'length': length}
 
 class PTB(Dataset):
 
@@ -129,35 +173,20 @@ class PTB(Dataset):
         else:
             self._load_vocab()
 
+        global tokenizer
+        global w2i
+        global max_sequence_length
+
         tokenizer = TweetTokenizer(preserve_case=False)
+        w2i = self.w2i
+        max_sequence_length = self.max_sequence_length
+        
+        df = pd.read_csv(self.raw_data_path, names=['url'])
+        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=200)
 
         data = defaultdict(dict)
-        with open(self.raw_data_path, 'r') as file:
-
-            for i, line in enumerate(file):
-                line = rewrite_to_toklen(line)
-
-                words = tokenizer.tokenize(line)
-
-                input = ['<sos>'] + words
-                input = input[:self.max_sequence_length]
-
-                target = words[:self.max_sequence_length-1]
-                target = target + ['<eos>']
-
-                assert len(input) == len(target), "%i, %i"%(len(input), len(target))
-                length = len(input)
-
-                input.extend(['<pad>'] * (self.max_sequence_length-length))
-                target.extend(['<pad>'] * (self.max_sequence_length-length))
-
-                input = [self.w2i.get(w, self.w2i['<unk>']) for w in input]
-                target = [self.w2i.get(w, self.w2i['<unk>']) for w in target]
-
-                id = len(data)
-                data[id]['input'] = input
-                data[id]['target'] = target
-                data[id]['length'] = length
+        for item in df['preprocess']:
+            data[len(data)] = item
 
         with io.open(os.path.join(self.data_dir, self.data_file), 'wb') as data_file:
             data = json.dumps(data, ensure_ascii=False)
