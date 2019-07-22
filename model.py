@@ -67,6 +67,7 @@ class SentenceVAE(nn.Module):
             hidden = hidden.squeeze()
 
         # REPARAMETERIZATION
+        encoder_last = hidden
         mean = self.hidden2mean(hidden)
         logv = self.hidden2logv(hidden)
         std = torch.exp(0.5 * logv)
@@ -112,6 +113,7 @@ class SentenceVAE(nn.Module):
 
 
         return logp, mean, logv, z
+        #return logp, mean, logv, encoder_last
 
 
     def inference(self, n=4, z=None):

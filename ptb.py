@@ -1,3 +1,4 @@
+from pdb import set_trace
 import os
 import io
 import json
@@ -21,6 +22,8 @@ from utils import OrderedCounter
 
 import re
 letter_pat = re.compile(r'[a-zA-Z0-9]')
+
+from sklearn.externals import joblib
 
 def rewrite_letters(url):
     return letter_pat.sub('a', url)
@@ -87,36 +90,25 @@ def preprocess(line):
     return {'input': input, 'target': target, 'length': length}
 
 class PTB(Dataset):
-
-    def __init__(self, data_dir, split, create_data, **kwargs):
+    def __init__(self, ptb_file=None, vocab_file=None, **kwargs):
 
         Dataset.__init__(self)
-        self.data_dir = data_dir
-        self.split = split
+        if ptb_file is not None:
+            return joblib.load(ptb_file)
+
         self.max_sequence_length = kwargs.get('max_sequence_length', 50)
         self.min_occ = kwargs.get('min_occ', 3)
+        self.w2i = None
+        self.iw2 = None
 
-        self.raw_data_path = os.path.join(data_dir, 'ptb.'+split+'.txt')
-        self.data_file = 'ptb.'+split+'.json'
-        self.vocab_file = 'ptb.vocab.json'
-
-        if create_data:
-            print("Creating new %s ptb data."%split.upper())
-            self._create_data()
-
-        elif not os.path.exists(os.path.join(self.data_dir, self.data_file)):
-            print("%s preprocessed file not found at %s. Creating new."%(split.upper(), os.path.join(self.data_dir, self.data_file)))
-            self._create_data()
-
-        else:
-            self._load_data()
-
+        self.vocab_file = vocab_file
+        if self.vocab_file is not None:
+            self.create_vocab(self.vocab_file)
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        idx = str(idx)
 
         return {
             'input': np.asarray(self.data[idx]['input']),
@@ -150,28 +142,13 @@ class PTB(Dataset):
     def get_i2w(self):
         return self.i2w
 
+    def dump(self, ptb_file=''):
+        if not ptb_file:
+            ptb_file = '%s.ptb'%(self.vocab_file)
+        joblib.dump(self, ptb_file)
 
-    def _load_data(self, vocab=True):
-
-        with open(os.path.join(self.data_dir, self.data_file), 'r') as file:
-            self.data = json.load(file)
-        if vocab:
-            with open(os.path.join(self.data_dir, self.vocab_file), 'r') as file:
-                vocab = json.load(file)
-            self.w2i, self.i2w = vocab['w2i'], vocab['i2w']
-
-    def _load_vocab(self):
-        with open(os.path.join(self.data_dir, self.vocab_file), 'r') as vocab_file:
-            vocab = json.load(vocab_file)
-
-        self.w2i, self.i2w = vocab['w2i'], vocab['i2w']
-
-    def _create_data(self):
-
-        if self.split == 'train':
-            self._create_vocab()
-        else:
-            self._load_vocab()
+    def create_data(self, df):
+        assert self.w2i is not None
 
         global tokenizer
         global w2i
@@ -181,22 +158,13 @@ class PTB(Dataset):
         w2i = self.w2i
         max_sequence_length = self.max_sequence_length
         
-        df = pd.read_csv(self.raw_data_path, names=['url'])
+        df = df
         df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=200)
+        self.data = df['preprocess'].values.tolist()
 
-        data = defaultdict(dict)
-        for item in df['preprocess']:
-            data[len(data)] = item
-
-        with io.open(os.path.join(self.data_dir, self.data_file), 'wb') as data_file:
-            data = json.dumps(data, ensure_ascii=False)
-            data_file.write(data.encode('utf8', 'replace'))
-
-        self._load_data(vocab=False)
-
-    def _create_vocab(self):
-
-        assert self.split == 'train', "Vocablurary can only be created for training file."
+    def create_vocab(self, vocab_file):
+        self.vocab_file = vocab_file
+        self.df = pd.DataFrame()
 
         tokenizer = TweetTokenizer(preserve_case=False)
 
@@ -209,9 +177,10 @@ class PTB(Dataset):
             i2w[len(w2i)] = st
             w2i[st] = len(w2i)
 
-        with open(self.raw_data_path, 'r') as file:
-
+        with open(self.vocab_file, 'r') as file:
+            lines = []
             for i, line in enumerate(file):
+                lines.append(line)
                 line = rewrite_to_toklen(line)
 
                 words = tokenizer.tokenize(line)
@@ -226,11 +195,10 @@ class PTB(Dataset):
 
         print("Vocablurary of %i keys created." %len(w2i))
 
-        vocab = dict(w2i=w2i, i2w=i2w)
-        with io.open(os.path.join(self.data_dir, self.vocab_file), 'wb') as vocab_file:
-            data = json.dumps(vocab, ensure_ascii=False)
-            vocab_file.write(data.encode('utf8', 'replace'))
+        self.w2i = w2i
+        self.i2w = i2w
 
-        self._load_vocab()
+        self.df['url'] = lines
+        self.create_data(self.df)
 
 #PTB('./data', 'train', create_data=True)

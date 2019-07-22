@@ -7,15 +7,16 @@ from sklearn.externals import joblib
 import sys
 
 if __name__ == '__main__':
-    model_fpath, data_dir, create_data = sys.argv[1:]
+    model_fpath, test_file = sys.argv[1:]
 
     model = joblib.load(model_fpath)
-    set_trace()
     if torch.cuda.is_available():
         model.cuda()
 
-    test = PTB(data_dir, 'test', create_data=create_data=='1')
-    data_loader = DataLoader(dataset=test, batch_size=4096, shuffle=False, num_workers=cpu_count())
+    test = pd.read_csv(test_file, names=['url'])
+    model.datasets.create_data(test)
+
+    data_loader = DataLoader(dataset=model.datasets, batch_size=4096, shuffle=False, num_workers=cpu_count())
 
     encoded = []
     for iteration, batch in enumerate(data_loader):
@@ -24,4 +25,4 @@ if __name__ == '__main__':
         encoded.append(z.tolist())
         print(iteration, z.size())
     encoded = np.vstack(encoded)
-    np.savetxt('%s.encoded.npy'%(test.raw_data_path), encoded)
+    np.savetxt('%s.encoded.npy'%(test_file), encoded)
