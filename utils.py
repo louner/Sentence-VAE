@@ -63,3 +63,9 @@ def expierment_name(args, ts):
     exp_name += "TS=%s"%ts
 
     return exp_name
+
+def batch_to_var(batch):
+    for k, v in batch.items():
+        if torch.is_tensor(v):
+            batch[k] = to_var(v)
+
