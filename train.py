@@ -28,6 +28,7 @@ def main(args):
         min_occ=args.min_occ
     )
     datasets = PTBDataset(ptb)
+    print('done preprocessing data')
 
     model = SentenceVAE(
         vocab_size=datasets.vocab_size,

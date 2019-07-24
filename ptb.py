@@ -71,7 +71,13 @@ def parallel_apply(df, key, funct, output_key, n_jobs=200):
 def preprocess(line):
     line = rewrite_to_toklen(line)
     words = tokenizer.tokenize(line)
+    return words_to_input(words)
 
+def preprocess_char(line):
+    words = [c for c in line]
+    return words_to_input(words)
+
+def words_to_input(words):
     input = ['<sos>'] + words
     input = input[:max_sequence_length]
 
@@ -159,7 +165,8 @@ class PTB(Dataset):
         max_sequence_length = self.max_sequence_length
         
         df = df
-        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
+        #df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
+        df = parallel_apply(df, 'url', preprocess_char, 'preprocess', n_jobs=16)
         self.data = df['preprocess'].values.tolist()
 
     def create_vocab(self, vocab_file):
@@ -181,9 +188,11 @@ class PTB(Dataset):
             lines = []
             for i, line in enumerate(file):
                 lines.append(line)
-                line = rewrite_to_toklen(line)
 
-                words = tokenizer.tokenize(line)
+                #line = rewrite_to_toklen(line)
+                #words = tokenizer.tokenize(line)
+                words = [c for c in line]
+
                 w2c.update(words)
 
             for w, c in w2c.items():
