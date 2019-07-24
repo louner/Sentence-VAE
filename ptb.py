@@ -165,8 +165,8 @@ class PTB(Dataset):
         max_sequence_length = self.max_sequence_length
         
         df = df
-        #df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
-        df = parallel_apply(df, 'url', preprocess_char, 'preprocess', n_jobs=16)
+        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
+        #df = parallel_apply(df, 'url', preprocess_char, 'preprocess', n_jobs=16)
         self.data = df['preprocess'].values.tolist()
 
     def create_vocab(self, vocab_file):
@@ -189,9 +189,9 @@ class PTB(Dataset):
             for i, line in enumerate(file):
                 lines.append(line)
 
-                #line = rewrite_to_toklen(line)
-                #words = tokenizer.tokenize(line)
-                words = [c for c in line]
+                line = rewrite_to_toklen(line)
+                words = tokenizer.tokenize(line)
+                #words = [c for c in line]
 
                 w2c.update(words)
 
