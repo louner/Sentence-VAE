@@ -1,3 +1,4 @@
+from pdb import set_trace
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
@@ -48,7 +49,6 @@ class SentenceVAE(nn.Module):
         self.outputs2vocab = nn.Linear(hidden_size * (2 if bidirectional else 1), vocab_size)
 
     def forward(self, input_sequence, length):
-
         batch_size = input_sequence.size(0)
         sorted_lengths, sorted_idx = torch.sort(length, descending=True)
         input_sequence = input_sequence[sorted_idx]
@@ -112,8 +112,8 @@ class SentenceVAE(nn.Module):
         logp = logp.view(b, s, self.embedding.num_embeddings)
 
 
-        return logp, mean, logv, z
-        #return logp, mean, logv, encoder_last
+        #return logp, mean, logv, z
+        return logp, mean, logv, z, encoder_last
 
 
     def inference(self, n=4, z=None):

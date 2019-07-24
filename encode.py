@@ -1,7 +1,9 @@
+from pdb import set_trace
 import pandas as pd
 from ptb import *
 from model import *
 from train import *
+from utils import batch_to_var
 from sklearn.externals import joblib
 
 import sys
@@ -16,12 +18,13 @@ if __name__ == '__main__':
     test = pd.read_csv(test_file, names=['url'], engine='python', error_bad_lines=False, warn_bad_lines=False)
     model.ptb.create_data(test)
 
-    data_loader = DataLoader(dataset=model.ptb, batch_size=4096, shuffle=False, num_workers=cpu_count())
+    data_loader = DataLoader(dataset=model.ptb, batch_size=1024, shuffle=False, num_workers=cpu_count())
 
     encoded = []
     for iteration, batch in enumerate(data_loader):
-        #logp, mean, logv, z, encoder_last, decoder_last = model(batch['input'], batch['length'])
-        logp, mean, logv, z = model(to_var(batch['input']), to_var(batch['length']))
+        batch_to_var(batch)
+        logp, mean, logv, z, encoder_last = model(batch['input'], batch['length'])
+        #logp, mean, logv, z = model(to_var(batch['input']), to_var(batch['length']))
         encoded.append(z.tolist())
         print(iteration, z.size())
     encoded = np.vstack(encoded)
