@@ -13,7 +13,7 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         model.cuda()
 
-    test = pd.read_csv(test_file, names=['url'])
+    test = pd.read_csv(test_file, names=['url'], engine='python', error_bad_lines=False, warn_bad_lines=False)
     model.ptb.create_data(test)
 
     data_loader = DataLoader(dataset=model.ptb, batch_size=4096, shuffle=False, num_workers=cpu_count())
