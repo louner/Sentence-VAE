@@ -2,7 +2,11 @@ from pdb import set_trace
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from utils import to_var
+from utils import to_var, batch_to_var, batch_to_list
+import pandas as pd
+from sklearn.externals import joblib
+from torch.utils.data import DataLoader
+import numpy as np
 
 class SentenceVAE(nn.Module):
 
@@ -115,6 +119,24 @@ class SentenceVAE(nn.Module):
         #return logp, mean, logv, z
         return logp, mean, logv, z, encoder_last
 
+    def encode_urls(self, urls):
+        df = pd.DataFrame()
+        df['url'] = urls
+        self.ptb.create_data(df)
+        
+        batches = []
+        for batch in DataLoader(dataset=self.ptb, shuffle=False, batch_size=10):
+            batch_to_var(batch)
+            logp, mean, logv, z, encoder_last = self.forward(batch['input'], batch['length'])
+            z = encoder_last
+
+            batch['encode'] = z
+            batch_to_list(batch)
+            batches.append(batch)
+        batches = [pd.DataFrame.from_dict(batch) for batch in batches]
+        batches = pd.concat(batches)
+
+        return batches
 
     def inference(self, n=4, z=None):
 
@@ -196,3 +218,4 @@ class SentenceVAE(nn.Module):
         save_to[running_seqs] = running_latest
 
         return save_to
+

@@ -69,15 +69,14 @@ def parallel_apply(df, key, funct, output_key, n_jobs=200):
     return df.merge(output, on=key)
 
 def preprocess(line):
-    line = rewrite_to_toklen(line)
-    words = tokenizer.tokenize(line)
-    return words_to_input(words)
+    words = tokenizer.tokenize(rewrite_to_toklen(line))
+    return words_to_input(words, line)
 
 def preprocess_char(line):
     words = [c for c in line]
     return words_to_input(words)
 
-def words_to_input(words):
+def words_to_input(words, url):
     input = ['<sos>'] + words
     input = input[:max_sequence_length]
 
@@ -93,7 +92,7 @@ def words_to_input(words):
     input = [w2i.get(w, w2i['<unk>']) for w in input]
     target = [w2i.get(w, w2i['<unk>']) for w in target]
 
-    return {'input': input, 'target': target, 'length': length}
+    return {'input': input, 'target': target, 'length': length, 'url': url}
 
 class PTB(Dataset):
     def __init__(self, ptb_file=None, vocab_file=None, train_with_vocab=False, train_file=None,**kwargs):
@@ -119,7 +118,8 @@ class PTB(Dataset):
         return {
             'input': np.asarray(self.data[idx]['input']),
             'target': np.asarray(self.data[idx]['target']),
-            'length': self.data[idx]['length']
+            'length': self.data[idx]['length'],
+            'url': self.data[idx]['url']
         }
 
     @property

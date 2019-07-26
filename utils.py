@@ -18,6 +18,13 @@ def to_var(x, volatile=False):
     return Variable(x, volatile=volatile)
 
 
+def to_list(x):
+    if type(x) == torch.Tensor:
+        return x.tolist()
+    else:
+        return x
+
+
 def idx2word(idx, i2w, pad_idx):
 
     sent_str = [str()]*len(idx)
@@ -69,3 +76,6 @@ def batch_to_var(batch):
         if torch.is_tensor(v):
             batch[k] = to_var(v)
 
+def batch_to_list(batch):
+    for k, v in batch.items():
+        batch[k] = to_list(v)
