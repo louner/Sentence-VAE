@@ -26,6 +26,6 @@ if __name__ == '__main__':
 
     #test = pd.read_csv(test_file, names=['url'], engine='python', error_bad_lines=False, warn_bad_lines=False)
     urls = read_txt(test_file).values.flatten().tolist()
-    batches = model.encode_urls(urls)
+    batches, encoded = model.encode_urls(urls)
 
-    batches.to_csv('%s.encoder_last'%(test_file))
+    joblib.dump([batches, encoded], '%s.encoder_last'%(test_file))

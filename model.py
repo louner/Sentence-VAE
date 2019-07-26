@@ -125,7 +125,8 @@ class SentenceVAE(nn.Module):
         self.ptb.create_data(df)
         
         batches = []
-        for batch in DataLoader(dataset=self.ptb, shuffle=False, batch_size=10):
+        encoded = []
+        for batch in DataLoader(dataset=self.ptb, shuffle=False, batch_size=1024*4):
             batch_to_var(batch)
             logp, mean, logv, z, encoder_last = self.forward(batch['input'], batch['length'])
             z = encoder_last
@@ -133,10 +134,14 @@ class SentenceVAE(nn.Module):
             batch['encode'] = z
             batch_to_list(batch)
             batches.append(batch)
+            encoded.append(batch['encode'])
+            del batch['encode']
+            print(z.shape)
         batches = [pd.DataFrame.from_dict(batch) for batch in batches]
         batches = pd.concat(batches)
 
-        return batches
+        encoded = np.vstack(encoded)
+        return batches, encoded
 
     def inference(self, n=4, z=None):
 
