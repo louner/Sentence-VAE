@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 #from nltk.tokenize import TweetTokenizer
 from gensim.utils import simple_tokenize
 import pandas as pd
+from urllib.parse import urlparse
 
 class TweetTokenizer:
     def __init__(self, *args, **kwargs):
@@ -49,6 +50,7 @@ def rewrite_to_toklen(url):
 tokenizer = TweetTokenizer(preserve_case=False)
 max_sequence_length = 60
 w2i = {}
+preprocess_word = None
 
 from contextlib import closing
 from multiprocessing import Pool
@@ -75,6 +77,21 @@ def preprocess(line):
 def preprocess_char(line):
     words = [c for c in line]
     return words_to_input(words)
+
+number_pat = re.compile(r'\d+')
+def number_to_len(txt):
+    return number_pat.sub(lambda x: str(len(x.group())), txt)
+
+split_pat = re.compile(r'([0-9a-zA-Z]+)')
+class Preprocess_Word:
+    def to_words(self, url):
+        path = urlparse(url).path
+        words_and_punct = split_pat.split(number_to_len(path))
+        return words_and_punct
+
+    def __call__(self, url):
+        words_and_punct = self.to_words(url)
+        return words_to_input(words_and_punct, url)
 
 def words_to_input(words, url):
     input = ['<sos>'] + words
@@ -159,14 +176,18 @@ class PTB(Dataset):
         global tokenizer
         global w2i
         global max_sequence_length
+        global preprocess_word
 
         tokenizer = TweetTokenizer(preserve_case=False)
         w2i = self.w2i
         max_sequence_length = self.max_sequence_length
+        preprocess_word = Preprocess_Word()
         
         df = df
-        df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
+        #df = parallel_apply(df, 'url', preprocess, 'preprocess', n_jobs=16)
         #df = parallel_apply(df, 'url', preprocess_char, 'preprocess', n_jobs=16)
+        df = parallel_apply(df, 'url', preprocess_word, 'preprocess', n_jobs=16)
+
         self.data = df['preprocess'].values.tolist()
 
     def create_vocab(self, vocab_file):
@@ -178,6 +199,7 @@ class PTB(Dataset):
         w2c = OrderedCounter()
         w2i = dict()
         i2w = dict()
+        preprocess_word = Preprocess_Word()
 
         special_tokens = ['<pad>', '<unk>', '<sos>', '<eos>']
         for st in special_tokens:
@@ -189,10 +211,11 @@ class PTB(Dataset):
             for i, line in enumerate(file):
                 lines.append(line)
 
-                line = rewrite_to_toklen(line)
-                words = tokenizer.tokenize(line)
+                #line = rewrite_to_toklen(line)
+                #words = tokenizer.tokenize(line)
                 #words = [c for c in line]
 
+                words = preprocess_word.to_words(line)
                 w2c.update(words)
 
             for w, c in w2c.items():
