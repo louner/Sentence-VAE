@@ -5,6 +5,7 @@ from model import *
 from train import *
 from utils import batch_to_var, batch_to_list
 from sklearn.externals import joblib
+from time import time
 
 import sys
 
@@ -26,6 +27,8 @@ if __name__ == '__main__':
 
     #test = pd.read_csv(test_file, names=['url'], engine='python', error_bad_lines=False, warn_bad_lines=False)
     urls = read_txt(test_file).values.flatten().tolist()
+    st = time()
     batches, encoded = model.encode_urls(urls)
+    print((time()-st)/len(urls))
 
     joblib.dump([batches, encoded], '%s.encoder_last'%(test_file))
